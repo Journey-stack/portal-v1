@@ -5,21 +5,38 @@ const router = express.Router();
 
 router.get('/', async (req, res) => {
   try {
-    const locationCode = req.query.location;
-    const slug = req.query.slug;
-    const supplier = await listPackages({ locationCode, type: 'PACKAGE', slug });
-    const rows = supplier?.data || supplier?.list || supplier?.packages || [];
-    const out = rows.map(p => ({
-      name: p.name || p.packageName || p.slug || p.packageCode,
+    const loc = (req.query.location || '').toUpperCase(); // e.g. "SG"
+    const slug = req.query.slug || undefined;
+
+    // Get the full catalog from supplier, then filter in our API
+    const rows = await listPackages({ slug });
+
+    // Supplier returns comma-separated locations, e.g. "SG,MY,TH"
+    const filtered = loc
+      ? rows.filter(p =>
+          (p.location || '')
+            .split(',')
+            .map(s => s.trim().toUpperCase())
+            .includes(loc)
+        )
+      : rows;
+
+    const plans = filtered.map(p => ({
+      name: p.name,
       slug: p.slug || p.packageCode,
-      location: p.locationCode || locationCode,
+      location: p.location,                                // comma-separated list
       speed: p.speed || p.networkType || '',
-      price_cents_supplier: Number(p.price) || null,
-      operators: p.operatorList || [],
+      price_raw: p.price,                                   // raw supplier price
+      retail_raw: p.retailPrice,
+      operators: p.locationNetworkList?.[0]?.operatorList   // where MNOs usually live
+                 || p.operatorList
+                 || [],
       payload: p
     }));
-    res.json({ plans: out });
+
+    res.json({ plans });
   } catch (e) {
+    console.error('pricing_failed', e.response?.data || e.message);
     res.status(500).json({ error: 'pricing_failed', detail: e.response?.data || e.message });
   }
 });
