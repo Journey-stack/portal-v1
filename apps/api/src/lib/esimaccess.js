@@ -6,6 +6,7 @@ const BASE = process.env.ESIM_BASE_URL || 'https://api.esimaccess.com';
 const ACCESS = process.env.ESIM_ACCESS_CODE;
 const SECRET = process.env.ESIM_SECRET_KEY;
 
+// Supplier HMAC headers
 function headersFor(bodyObj = {}) {
   const timestamp = Date.now().toString();
   const requestId = uuidv4();
@@ -21,39 +22,27 @@ function headersFor(bodyObj = {}) {
   };
 }
 
+// ----- Catalog
 export async function listPackages({ slug } = {}) {
-  // Ask supplier for ALL packages; we'll filter by country in our API.
-  const body = {
-    type: "",            // <- empty string to avoid filtering (not "PACKAGE"/"TOPUP")
-    slug: slug || ""
-    // locationCode: undefined  // omit on purpose
-  };
+  // Ask for all; filter by slug/location at our API layer
+  const body = { type: '', slug: slug || '' };
   const headers = headersFor(body);
   const url = `${BASE}/api/v1/open/package/list`;
   const { data } = await axios.post(url, body, { headers });
-
-  // Normalize to always return an array of packages
   return data?.obj?.packageList || data?.data || data?.list || data?.packages || [];
 }
 
-import { v4 as uuidv4 } from 'uuid';
-import axios from 'axios';
-
-// helper to fetch one package and its price
 async function fetchPackageBySlug(slug) {
-  const body = { type: "", slug: slug || "" }; // ask for all, filter by slug
-  const headers = headersFor(body);
-  const url = `${BASE}/api/v1/open/package/list`;
-  const { data } = await axios.post(url, body, { headers });
-  const rows = data?.obj?.packageList || data?.data || data?.list || data?.packages || [];
+  const rows = await listPackages({ slug });
   return rows.find(p => (p.slug || p.packageCode) === slug);
 }
 
+// ----- Orders
 export async function createOrder({ slug, packageCode, periodNum, qty = 1 } = {}) {
   const code = packageCode || slug;
   if (!code) throw new Error('Missing package code');
 
-  // get supplier price (their unit is price * 10,000; eg 10000 = $1.00)
+  // Get supplier unit price (their format is used as-is)
   const pkg = await fetchPackageBySlug(code);
   if (!pkg || !pkg.price) throw new Error('Package/price not found');
 
@@ -63,10 +52,10 @@ export async function createOrder({ slug, packageCode, periodNum, qty = 1 } = {}
 
   const body = {
     transactionId: uuidv4(),
-    amount,                               // total
+    amount,
     packageInfoList: [
       Object.assign(
-        { packageCode: code, count, price },               // required
+        { packageCode: code, count, price },
         Number(periodNum) > 0 ? { periodNum: Number(periodNum) } : {}
       )
     ]
@@ -75,7 +64,7 @@ export async function createOrder({ slug, packageCode, periodNum, qty = 1 } = {}
   const headers = headersFor(body);
   const url = `${BASE}/api/v1/open/esim/order`;
   const { data } = await axios.post(url, body, { headers });
-  return data; // expects { success, obj: { orderNo }, ... }
+  return data;
 }
 
 export async function queryEsim({ orderNo, iccid } = {}) {
