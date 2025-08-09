@@ -36,8 +36,13 @@ export async function listPackages({ slug } = {}) {
   return data?.obj?.packageList || data?.data || data?.list || data?.packages || [];
 }
 
-export async function createOrder({ locationCode, slug, periodNum = 7, qty = 1 } = {}) {
-  const body = { locationCode, packageCode: slug, periodNum, quantity: qty };
+export async function createOrder({ packageCode, slug, periodNum, qty = 1 } = {}) {
+  const body = {};
+  if (packageCode) body.packageCode = packageCode;
+  if (slug) body.slug = slug;               // send both to be safe
+  if (Number(periodNum) > 0) body.periodNum = Number(periodNum);  // optional
+  body.quantity = qty;
+
   const headers = headersFor(body);
   const url = `${BASE}/api/v1/open/esim/order`;
   const { data } = await axios.post(url, body, { headers });
