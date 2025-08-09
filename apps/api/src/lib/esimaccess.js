@@ -21,12 +21,19 @@ function headersFor(bodyObj = {}) {
   };
 }
 
-export async function listPackages({ locationCode, type = 'PACKAGE', slug } = {}) {
-  const body = { locationCode, type, slug };
+export async function listPackages({ slug } = {}) {
+  // Ask supplier for ALL packages; we'll filter by country in our API.
+  const body = {
+    type: "",            // <- empty string to avoid filtering (not "PACKAGE"/"TOPUP")
+    slug: slug || ""
+    // locationCode: undefined  // omit on purpose
+  };
   const headers = headersFor(body);
   const url = `${BASE}/api/v1/open/package/list`;
   const { data } = await axios.post(url, body, { headers });
-  return data;
+
+  // Normalize to always return an array of packages
+  return data?.obj?.packageList || data?.data || data?.list || data?.packages || [];
 }
 
 export async function createOrder({ locationCode, slug, periodNum = 7, qty = 1 } = {}) {
