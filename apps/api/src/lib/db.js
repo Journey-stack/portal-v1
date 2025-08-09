@@ -7,7 +7,12 @@ export const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+// apps/api/src/lib/db.js
 export async function initDb() {
-  const schema = fs.readFileSync(new URL('../../../../../db/schema.sql', import.meta.url), 'utf8');.toString();
+  const schema = fs.readFileSync(
+    new URL('../../../../../db/schema.sql', import.meta.url),
+    'utf8'
+  );
   await pool.query(schema);
 }
+
