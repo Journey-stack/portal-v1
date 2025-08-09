@@ -8,6 +8,6 @@ export const pool = new Pool({
 });
 
 export async function initDb() {
-  const schema = fs.readFileSync(new URL('../../../../db/schema.sql', import.meta.url)).toString();
+  const schema = fs.readFileSync(new URL('../../../../../db/schema.sql', import.meta.url), 'utf8');.toString();
   await pool.query(schema);
 }
