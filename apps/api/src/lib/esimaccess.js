@@ -36,17 +36,46 @@ export async function listPackages({ slug } = {}) {
   return data?.obj?.packageList || data?.data || data?.list || data?.packages || [];
 }
 
-export async function createOrder({ packageCode, slug, periodNum, qty = 1 } = {}) {
-  const body = {};
-  if (packageCode) body.packageCode = packageCode;
-  if (slug) body.slug = slug;               // send both to be safe
-  if (Number(periodNum) > 0) body.periodNum = Number(periodNum);  // optional
-  body.quantity = qty;
+import { v4 as uuidv4 } from 'uuid';
+import axios from 'axios';
+
+// helper to fetch one package and its price
+async function fetchPackageBySlug(slug) {
+  const body = { type: "", slug: slug || "" }; // ask for all, filter by slug
+  const headers = headersFor(body);
+  const url = `${BASE}/api/v1/open/package/list`;
+  const { data } = await axios.post(url, body, { headers });
+  const rows = data?.obj?.packageList || data?.data || data?.list || data?.packages || [];
+  return rows.find(p => (p.slug || p.packageCode) === slug);
+}
+
+export async function createOrder({ slug, packageCode, periodNum, qty = 1 } = {}) {
+  const code = packageCode || slug;
+  if (!code) throw new Error('Missing package code');
+
+  // get supplier price (their unit is price * 10,000; eg 10000 = $1.00)
+  const pkg = await fetchPackageBySlug(code);
+  if (!pkg || !pkg.price) throw new Error('Package/price not found');
+
+  const price = Number(pkg.price);
+  const count = Number(qty) || 1;
+  const amount = price * count;
+
+  const body = {
+    transactionId: uuidv4(),
+    amount,                               // total
+    packageInfoList: [
+      Object.assign(
+        { packageCode: code, count, price },               // required
+        Number(periodNum) > 0 ? { periodNum: Number(periodNum) } : {}
+      )
+    ]
+  };
 
   const headers = headersFor(body);
   const url = `${BASE}/api/v1/open/esim/order`;
   const { data } = await axios.post(url, body, { headers });
-  return data;
+  return data; // expects { success, obj: { orderNo }, ... }
 }
 
 export async function queryEsim({ orderNo, iccid } = {}) {
